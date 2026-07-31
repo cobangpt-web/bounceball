@@ -1,0 +1,10 @@
+{
+  "name": "Bounce Up!",
+  "description": "A five-stage side-view bounce-ball platformer.",
+  "players": {
+    "min": 1,
+    "max": 1
+  },
+  "entry": "./index.html",
+  "logic": "./logic.js"
+}

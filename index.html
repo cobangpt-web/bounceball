@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <title>바운스 업! — Bounce Up</title>
+  <meta name="description" content="통통 튀는 공을 조종해 별을 모으고 하늘 관문까지 도달하는 5스테이지 브라우저 게임입니다. PC와 모바일에서 바로 플레이하세요.">
+  <link rel="canonical" href="https://cobangpt-web.github.io/bounceball/">
+
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="바운스 업!">
+  <meta property="og:title" content="바운스 업! — 통통 튀는 브라우저 게임">
+  <meta property="og:description" content="별을 모으고 가시와 발판을 넘어 하늘 관문까지 도전하세요.">
+  <meta property="og:image" content="https://cobangpt-web.github.io/bounceball/assets/og.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:url" content="https://cobangpt-web.github.io/bounceball/">
+  <meta property="og:locale" content="ko_KR">
+
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="바운스 업! — 통통 튀는 브라우저 게임">
+  <meta name="twitter:description" content="별을 모으고 가시와 발판을 넘어 하늘 관문까지 도전하세요.">
+  <meta name="twitter:image" content="https://cobangpt-web.github.io/bounceball/assets/og.png">
+  <meta name="theme-color" content="#28bff2">
+  <link rel="icon" type="image/png" href="./assets/favicon.png">
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: "Pretendard", "Noto Sans KR", system-ui, sans-serif;
+      --navy: #071c4b;
+      --cyan: #23d8f3;
+      --glass: rgba(7, 28, 75, .62);
+    }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: #0a2f72; }
+    body { touch-action: none; user-select: none; }
+    #game-shell { position: fixed; inset: 0; overflow: hidden; }
+    canvas { display: block; width: 100%; height: 100%; }
+    .round-button {
+      position: fixed;
+      z-index: 4;
+      display: grid;
+      place-items: center;
+      border: 2px solid rgba(255,255,255,.75);
+      color: #fff;
+      background: var(--glass);
+      box-shadow: 0 8px 24px rgba(7, 28, 75, .25), inset 0 1px 0 rgba(255,255,255,.24);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      cursor: pointer;
+    }
+    .round-button:active, .round-button.active {
+      transform: scale(.94);
+      background: rgba(35,216,243,.76);
+    }
+    #pause-button, #sound-button {
+      top: max(12px, env(safe-area-inset-top));
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      font: 800 18px/1 system-ui;
+    }
+    #pause-button { right: 66px; }
+    #sound-button { right: 14px; }
+    #touch-left, #touch-right {
+      bottom: max(18px, env(safe-area-inset-bottom));
+      width: clamp(72px, 18vw, 104px);
+      height: clamp(72px, 18vw, 104px);
+      border-radius: 28px;
+      font: 900 clamp(28px, 7vw, 42px)/1 system-ui;
+    }
+    #touch-left { left: max(18px, env(safe-area-inset-left)); }
+    #touch-right { right: max(18px, env(safe-area-inset-right)); }
+    #dev {
+      position: fixed;
+      z-index: 10;
+      left: 8px;
+      top: 8px;
+      display: none;
+      padding: 6px 8px;
+      border-radius: 8px;
+      color: #9cff9c;
+      background: rgba(0,0,0,.72);
+      font: 12px/1.35 ui-monospace, monospace;
+      white-space: pre;
+      pointer-events: none;
+    }
+    @media (pointer: fine) {
+      #touch-left, #touch-right { display: none; }
+    }
+    @media (max-width: 520px) {
+      #pause-button, #sound-button { width: 40px; height: 40px; }
+      #pause-button { right: 60px; }
+      #sound-button { right: 12px; }
+    }
+  </style>
+</head>
+<body>
+  <main id="game-shell">
+    <canvas id="game" aria-label="Bounce Up game"></canvas>
+    <button id="pause-button" class="round-button" type="button">Ⅱ</button>
+    <button id="sound-button" class="round-button" type="button">♪</button>
+    <button id="touch-left" class="round-button" type="button">◀</button>
+    <button id="touch-right" class="round-button" type="button">▶</button>
+    <div id="dev"></div>
+  </main>
+  <script type="module" src="./game.js"></script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+id,role,type,description,size/ratio,relative_scale,style line ref,source
+sky_backdrop,Full-screen level backdrop,Static 2D,"Clean vertical sky gradient with a distant geometric city silhouette and generous empty play space",16:9,scene,STYLE_FORMULA,reference_media[1]
+ball_hero,Player ball sprite,Static 2D,"Glossy round coral hero ball with a tiny determined face and a clear circular silhouette",1:1,1.0,STYLE_FORMULA,reference_media[0]
+platform_tile,Repeated solid platform surface,"Tileable texture","Simple blue floating platform material with a bright top lip and darker side face",1:1,module,STYLE_FORMULA,reference_media[2]
+spike_hazard,Repeated lethal hazard,Static 2D,"Readable triangular spike strip with a coral-red warning edge on transparency",2:1,0.6,STYLE_FORMULA,reference_media[3]
+spring_pad,High-bounce platform modifier,Static 2D,"Compact yellow spring pad with compressed coils and a bright upward-energy accent",2:1,0.5,STYLE_FORMULA,reference_media[4]
+goal_portal,Level exit landmark,Static 2D,"Friendly cyan portal ring with a warm glowing center and a strong destination silhouette",1:1,2.0,STYLE_FORMULA,reference_media[5]
+star_pickup,Optional score collectible,Static 2D,"Small golden five-point star collectible with a soft halo and crisp silhouette",1:1,0.55,STYLE_FORMULA,reference_media[6]
+store_thumbnail,Public game cover,Static 2D,"Wide gameplay key art showing the coral ball bouncing across blue platforms toward the cyan portal",16:9,scene,STYLE_FORMULA,reference_media[7]
+favicon,Browser and catalog icon,Static 2D,"Close-up coral ball hero face centered inside a simple cyan ring",1:1,icon,STYLE_FORMULA,reference_media[8]
+checkpoint_marker,Mid-stage respawn beacon,Static 2D,"Slim cyan energy beacon with a warm center and a clear vertical silhouette",1:2,1.4,STYLE_FORMULA,generate
+bounce_sfx,Immediate bounce acknowledgment,Audio,"Short soft rubber boing with a clean arcade click layer",0.25 s,n/a,STYLE_FORMULA,generate
+collect_sfx,Star pickup acknowledgment,Audio,"Bright two-note glassy chime with a quick sparkling tail",0.4 s,n/a,STYLE_FORMULA,generate
+clear_sfx,Level completion reward,Audio,"Compact rising three-note arcade fanfare with warm synth bells",1.2 s,n/a,STYLE_FORMULA,generate
+death_sfx,Hazard impact acknowledgment,Audio,"Short soft descending arcade thump with a muted warning blip",0.5 s,n/a,STYLE_FORMULA,generate
+arcade_music,Looping background music,Audio,"Cheerful instrumental arcade track with springy marimba, soft synth plucks, light drums, and a clean loop-friendly ending",30 s,n/a,STYLE_FORMULA,generate
