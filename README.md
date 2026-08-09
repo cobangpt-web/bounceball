@@ -43,6 +43,12 @@ python -m http.server 4317 --bind 127.0.0.1
 - 최고 기록은 별 개수가 많은 기록을 우선하고, 별 개수가 같으면 더 빠른 기록을 선택합니다.
 - 온라인 1등 고스트는 Supabase 설정을 넣으면 활성화됩니다.
 
+## 사운드
+
+- BGM과 효과음은 `assets/audio`에 들어 있습니다.
+- 모든 오디오는 이 프로젝트용으로 직접 생성한 무료 오리지널 에셋입니다.
+- 라이선스 메모는 `docs/audio-license.md`에 있습니다.
+
 ## 온라인 1등 고스트 켜기
 
 1. Supabase에서 `docs/supabase-ranking.sql`을 실행합니다.

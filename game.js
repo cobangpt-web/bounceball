@@ -50,6 +50,15 @@ const ASSET_URLS = Object.freeze({
   cover: "./assets/store_thumbnail.png"
 });
 
+const AUDIO_URLS = Object.freeze({
+  bgm: "./assets/audio/bgm_sky_loop.wav",
+  bounce: "./assets/audio/bounce.wav",
+  spring: "./assets/audio/spring.wav",
+  star: "./assets/audio/star.wav",
+  clear: "./assets/audio/clear.wav",
+  death: "./assets/audio/death.wav"
+});
+
 const platform = (x, y, w, kind = "normal", motion = null) =>
   Object.freeze({ x, y, w, h: 38, kind, motion });
 const star = (x, y) => Object.freeze({ x, y });
@@ -291,8 +300,11 @@ let audioContext = null;
 let masterGain = null;
 let sfxGain = null;
 let musicGain = null;
+let musicSource = null;
+let audioLoadPromise = null;
 let nextMusicAt = 0;
 let musicStep = 0;
+const audioBuffers = {};
 
 const bestTimes = (() => {
   try {
@@ -487,6 +499,62 @@ function ensureAudio() {
     nextMusicAt = audioContext.currentTime + 0.05;
   }
   if (audioContext.state === "suspended") audioContext.resume();
+  void loadAudioAssets().then(startMusicLoop);
+}
+
+function loadAudioAssets() {
+  if (!audioContext) return Promise.resolve();
+  if (audioLoadPromise) return audioLoadPromise;
+  const entries = Object.entries(AUDIO_URLS);
+  audioLoadPromise = Promise.all(entries.map(async ([key, url]) => {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(url);
+    const data = await response.arrayBuffer();
+    audioBuffers[key] = await audioContext.decodeAudioData(data);
+  })).catch(() => {
+    // Procedural WebAudio remains as a fallback if decoded assets fail.
+  });
+  return audioLoadPromise;
+}
+
+function stopMusicLoop() {
+  if (!musicSource) return;
+  try {
+    musicSource.stop();
+  } catch {
+    // The source may already be stopped by the browser.
+  }
+  musicSource.disconnect();
+  musicSource = null;
+}
+
+function startMusicLoop() {
+  if (!audioContext || muted || musicSource || phase === "loading") return;
+  const buffer = audioBuffers.bgm;
+  if (!buffer) return;
+  const source = audioContext.createBufferSource();
+  source.buffer = buffer;
+  source.loop = true;
+  source.connect(musicGain);
+  source.start();
+  source.onended = () => {
+    if (musicSource === source) musicSource = null;
+  };
+  musicSource = source;
+}
+
+function playBuffer(name, amount = 1, rate = 1) {
+  const buffer = audioBuffers[name];
+  if (!audioContext || muted || !buffer) return false;
+  const source = audioContext.createBufferSource();
+  const gain = audioContext.createGain();
+  source.buffer = buffer;
+  source.playbackRate.value = rate;
+  gain.gain.value = amount;
+  source.connect(gain);
+  gain.connect(sfxGain);
+  source.start();
+  return true;
 }
 
 function playSweep(from, to, duration, type = "sine", amount = 0.4, delay = 0) {
@@ -507,26 +575,34 @@ function playSweep(from, to, duration, type = "sine", amount = 0.4, delay = 0) {
 }
 
 function soundBounce(isSpring) {
+  if (playBuffer(isSpring ? "spring" : "bounce", isSpring ? 0.62 : 0.46)) return;
   playSweep(isSpring ? 260 : 175, isSpring ? 620 : 235, isSpring ? 0.2 : 0.12, "triangle", isSpring ? 0.42 : 0.25);
 }
 
 function soundCollect() {
+  if (playBuffer("star", 0.54)) return;
   playSweep(620, 840, 0.12, "sine", 0.28);
   playSweep(880, 1180, 0.16, "sine", 0.22, 0.075);
 }
 
 function soundClear() {
+  if (playBuffer("clear", 0.58)) return;
   playSweep(440, 660, 0.2, "triangle", 0.28);
   playSweep(660, 880, 0.22, "triangle", 0.25, 0.13);
   playSweep(880, 1320, 0.32, "triangle", 0.22, 0.28);
 }
 
 function soundDeath() {
+  if (playBuffer("death", 0.5)) return;
   playSweep(220, 75, 0.32, "square", 0.16);
 }
 
 function updateMusic() {
   if (!audioContext || muted || phase === "loading") return;
+  if (audioBuffers.bgm) {
+    startMusicLoop();
+    return;
+  }
   const pattern = [262, 330, 392, 523, 392, 330, 294, 392, 330, 392, 494, 659, 494, 392, 330, 294];
   while (nextMusicAt < audioContext.currentTime + 0.12) {
     const osc = audioContext.createOscillator();
@@ -554,6 +630,8 @@ function toggleSound() {
     masterGain.gain.cancelScheduledValues(audioContext.currentTime);
     masterGain.gain.linearRampToValueAtTime(muted ? 0 : 0.58, audioContext.currentTime + 0.08);
   }
+  if (muted) stopMusicLoop();
+  else startMusicLoop();
   soundButton.classList.toggle("active", !muted);
   soundButton.title = muted ? STR.soundOff : STR.soundOn;
 }
@@ -1557,6 +1635,8 @@ if (devEnabled) {
       stars: ghost.replay.stars,
       samples: ghost.replay.samples.length
     })),
+    audioBuffers: Object.keys(audioBuffers),
+    musicPlaying: Boolean(musicSource),
     localBestReplayCount: localBestReplays.filter(Boolean).length,
     onlineGhostEnabled: Boolean(onlineConfig()),
     platformCount: runtimePlatforms.length,
