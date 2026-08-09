@@ -994,19 +994,50 @@ function drawPlatform(runtime) {
   ctx.globalAlpha = fade;
   roundedRectPath(runtime.cx, runtime.cy, definition.w, definition.h, 16);
   ctx.clip();
-  ctx.fillStyle = platformPattern || "#2768d8";
-  ctx.fillRect(runtime.cx, runtime.cy, definition.w, definition.h);
-  ctx.fillStyle = "rgba(6,26,78,.35)";
-  ctx.fillRect(runtime.cx, runtime.cy + definition.h * 0.56, definition.w, definition.h * 0.44);
-  ctx.fillStyle = "rgba(139,244,255,.84)";
-  ctx.fillRect(runtime.cx, runtime.cy, definition.w, 7);
+  if (definition.kind === "crumble") {
+    const gradient = ctx.createLinearGradient(runtime.cx, runtime.cy, runtime.cx, runtime.cy + definition.h);
+    gradient.addColorStop(0, "#ffcf63");
+    gradient.addColorStop(0.55, "#c778d8");
+    gradient.addColorStop(1, "#71398f");
+    ctx.fillStyle = gradient;
+    ctx.fillRect(runtime.cx, runtime.cy, definition.w, definition.h);
+    ctx.fillStyle = "rgba(255,246,174,.72)";
+    ctx.fillRect(runtime.cx, runtime.cy, definition.w, 7);
+    ctx.fillStyle = "rgba(54,20,88,.42)";
+    ctx.fillRect(runtime.cx, runtime.cy + definition.h * 0.58, definition.w, definition.h * 0.42);
+    ctx.strokeStyle = "rgba(86,33,105,.92)";
+    ctx.lineWidth = 4;
+    for (let x = runtime.cx + 32; x < runtime.cx + definition.w - 18; x += 52) {
+      ctx.beginPath();
+      ctx.moveTo(x, runtime.cy + 9);
+      ctx.lineTo(x + 11, runtime.cy + 19);
+      ctx.lineTo(x - 3, runtime.cy + 31);
+      ctx.lineTo(x + 9, runtime.cy + definition.h - 5);
+      ctx.stroke();
+    }
+  } else {
+    ctx.fillStyle = platformPattern || "#2768d8";
+    ctx.fillRect(runtime.cx, runtime.cy, definition.w, definition.h);
+    ctx.fillStyle = "rgba(6,26,78,.35)";
+    ctx.fillRect(runtime.cx, runtime.cy + definition.h * 0.56, definition.w, definition.h * 0.44);
+    ctx.fillStyle = "rgba(139,244,255,.84)";
+    ctx.fillRect(runtime.cx, runtime.cy, definition.w, 7);
+  }
   ctx.restore();
   ctx.save();
   ctx.globalAlpha = fade;
-  ctx.strokeStyle = "#071c4b";
+  ctx.strokeStyle = definition.kind === "crumble" ? "#3b185a" : "#071c4b";
   ctx.lineWidth = 5;
   roundedRectPath(runtime.cx, runtime.cy, definition.w, definition.h, 16);
   ctx.stroke();
+  if (definition.kind === "crumble") {
+    ctx.fillStyle = "rgba(255,232,110,.92)";
+    for (let x = runtime.cx + 17; x < runtime.cx + definition.w - 12; x += 40) {
+      ctx.beginPath();
+      ctx.arc(x, runtime.cy + 12, 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
   if (definition.kind === "moving") {
     ctx.strokeStyle = "rgba(58,229,246,.9)";
     ctx.lineWidth = 3;
