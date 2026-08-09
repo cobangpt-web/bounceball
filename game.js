@@ -29,6 +29,8 @@ const CONFIG = Object.freeze({
   springHeightRatio: 0.9,
   springTopInset: 10,
   springRecoilTime: 0.34,
+  replaySampleInterval: 0.08,
+  replayMaxSamples: 1500,
   landingTolerance: 14,
   deathDelay: 0.62,
   respawnGrace: 0.8,
@@ -226,6 +228,12 @@ let level = LEVELS[0];
 let runtimePlatforms = [];
 let runtimeSprings = [];
 let runtimeStars = [];
+let currentReplay = null;
+let nextReplaySampleAt = 0;
+let localBestReplays = [];
+let localLastReplays = [];
+let onlineBestGhost = null;
+let onlineFetchTicket = 0;
 let simTime = 0;
 let stageTime = 0;
 let runTime = 0;
@@ -302,6 +310,109 @@ function saveBestTimes() {
     localStorage.setItem("bounce-up-best", JSON.stringify(bestTimes));
   } catch {
     // Storage can be disabled without affecting play.
+  }
+}
+
+function emptyReplaySlots() {
+  return Array.from({ length: LEVELS.length }, () => null);
+}
+
+function isReplay(value) {
+  return value &&
+    Number.isInteger(value.levelIndex) &&
+    Number.isFinite(value.time) &&
+    Array.isArray(value.samples) &&
+    value.samples.length > 1;
+}
+
+function loadReplaySlots(key) {
+  try {
+    const saved = JSON.parse(localStorage.getItem(key) || "[]");
+    return Array.from({ length: LEVELS.length }, (_, index) =>
+      isReplay(saved[index]) ? saved[index] : null
+    );
+  } catch {
+    return emptyReplaySlots();
+  }
+}
+
+function saveReplaySlots(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // Ghost replay storage is optional; gameplay still works if full or blocked.
+  }
+}
+
+localBestReplays = loadReplaySlots("bounce-up-best-replays");
+localLastReplays = loadReplaySlots("bounce-up-last-replays");
+
+function onlineConfig() {
+  const config = window.BOUNCE_UP_ONLINE;
+  if (!config || typeof config !== "object") return null;
+  const supabaseUrl = String(config.supabaseUrl || "").replace(/\/$/, "");
+  const anonKey = String(config.anonKey || "");
+  const table = String(config.table || "bounce_up_runs");
+  if (!supabaseUrl || !anonKey) return null;
+  return {
+    supabaseUrl,
+    anonKey,
+    table,
+    playerName: String(config.playerName || localStorage.getItem("bounce-up-player") || "익명")
+  };
+}
+
+function onlineHeaders(config, extra = {}) {
+  return {
+    apikey: config.anonKey,
+    Authorization: `Bearer ${config.anonKey}`,
+    "Content-Type": "application/json",
+    ...extra
+  };
+}
+
+async function fetchOnlineBestGhost(levelIndex) {
+  const config = onlineConfig();
+  const ticket = ++onlineFetchTicket;
+  onlineBestGhost = null;
+  if (!config) return;
+  const query = `select=player_name,time,stars,replay&level_index=eq.${levelIndex}` +
+    "&order=stars.desc,time.asc&limit=1";
+  try {
+    const response = await fetch(`${config.supabaseUrl}/rest/v1/${config.table}?${query}`, {
+      headers: onlineHeaders(config)
+    });
+    if (!response.ok) return;
+    const rows = await response.json();
+    const record = rows?.[0];
+    if (ticket !== onlineFetchTicket || !isReplay(record?.replay)) return;
+    onlineBestGhost = {
+      ...record.replay,
+      label: record.player_name ? `${record.player_name} 1등` : STR.onlineBestGhost,
+      online: true
+    };
+  } catch {
+    // The online ghost is a bonus layer; failures should never interrupt play.
+  }
+}
+
+async function submitOnlineReplay(replay) {
+  const config = onlineConfig();
+  if (!config || !isReplay(replay)) return;
+  try {
+    await fetch(`${config.supabaseUrl}/rest/v1/${config.table}`, {
+      method: "POST",
+      headers: onlineHeaders(config, { Prefer: "return=minimal" }),
+      body: JSON.stringify({
+        level_index: replay.levelIndex,
+        player_name: config.playerName.slice(0, 24),
+        time: Number(replay.time.toFixed(3)),
+        stars: replay.stars,
+        replay
+      })
+    });
+  } catch {
+    // Online upload is best-effort.
   }
 }
 
@@ -494,9 +605,11 @@ function loadLevel(index, resetRun = false) {
     completedStars = 0;
   }
   resetBall(level.start.x, level.start.y);
+  phase = "playing";
+  startReplayRecording();
+  void fetchOnlineBestGhost(currentLevelIndex);
   cameraX = 0;
   cameraTargetX = 0;
-  phase = "playing";
 }
 
 function resetBall(x, y) {
@@ -508,6 +621,59 @@ function resetBall(x, y) {
   ball.vy = -CONFIG.bounceSpeed;
   ball.squash = 0;
   ball.graceUntil = simTime + CONFIG.respawnGrace;
+}
+
+function startReplayRecording() {
+  currentReplay = {
+    version: 1,
+    levelIndex: currentLevelIndex,
+    levelName: STR.stageNames[currentLevelIndex],
+    time: 0,
+    stars: 0,
+    samples: []
+  };
+  nextReplaySampleAt = 0;
+  recordReplaySample(true);
+}
+
+function recordReplaySample(force = false) {
+  if (!currentReplay || phase !== "playing") return;
+  if (!force && stageTime < nextReplaySampleAt) return;
+  if (currentReplay.samples.length >= CONFIG.replayMaxSamples) {
+    currentReplay.samples.shift();
+  }
+  currentReplay.samples.push({
+    t: Number(stageTime.toFixed(3)),
+    x: Number(ball.x.toFixed(1)),
+    y: Number(ball.y.toFixed(1)),
+    vx: Number(ball.vx.toFixed(1)),
+    vy: Number(ball.vy.toFixed(1))
+  });
+  nextReplaySampleAt = stageTime + CONFIG.replaySampleInterval;
+}
+
+function finishReplay() {
+  if (!currentReplay) return null;
+  recordReplaySample(true);
+  const replay = {
+    ...currentReplay,
+    time: Number(stageTime.toFixed(3)),
+    stars: stageCollected,
+    samples: currentReplay.samples.slice()
+  };
+  currentReplay = null;
+  localLastReplays[currentLevelIndex] = replay;
+  saveReplaySlots("bounce-up-last-replays", localLastReplays);
+  return replay;
+}
+
+function replayIsBetter(candidate, current) {
+  if (!isReplay(candidate)) return false;
+  if (!isReplay(current)) return true;
+  if ((candidate.stars || 0) !== (current.stars || 0)) {
+    return (candidate.stars || 0) > (current.stars || 0);
+  }
+  return candidate.time < current.time;
 }
 
 function restartLevel() {
@@ -730,6 +896,7 @@ function update(dt) {
   }
 
   ball.squash = Math.max(0, ball.squash - dt * 5.5);
+  recordReplaySample();
 
   for (const spike of level.hazards) {
     const hitbox = {
@@ -784,11 +951,17 @@ function update(dt) {
 
 function completeStage() {
   completedStars += stageCollected;
+  const replay = finishReplay();
   const best = bestTimes[currentLevelIndex];
   if (best === null || stageTime < best) {
     bestTimes[currentLevelIndex] = stageTime;
     saveBestTimes();
   }
+  if (replayIsBetter(replay, localBestReplays[currentLevelIndex])) {
+    localBestReplays[currentLevelIndex] = replay;
+    saveReplaySlots("bounce-up-best-replays", localBestReplays);
+  }
+  if (replay) void submitOnlineReplay(replay);
   soundClear();
   spawnBurst(level.goal.x, level.goal.y, "#42efff", 28, 280);
   shake = 8;
@@ -876,6 +1049,109 @@ function drawCheckpoint() {
   drawCalls += 1;
 }
 
+function replaySampleAt(replay, time) {
+  if (!isReplay(replay)) return null;
+  const samples = replay.samples;
+  if (time <= samples[0].t) return samples[0];
+  const last = samples[samples.length - 1];
+  if (time >= last.t) return last;
+  let low = 0;
+  let high = samples.length - 1;
+  while (high - low > 1) {
+    const mid = (low + high) >> 1;
+    if (samples[mid].t <= time) low = mid;
+    else high = mid;
+  }
+  const a = samples[low];
+  const b = samples[high];
+  const ratio = clamp((time - a.t) / Math.max(0.001, b.t - a.t), 0, 1);
+  return {
+    t: time,
+    x: a.x + (b.x - a.x) * ratio,
+    y: a.y + (b.y - a.y) * ratio,
+    vx: a.vx + (b.vx - a.vx) * ratio,
+    vy: a.vy + (b.vy - a.vy) * ratio
+  };
+}
+
+function activeGhosts() {
+  const ghosts = [];
+  const local = localBestReplays[currentLevelIndex];
+  if (isReplay(local)) {
+    ghosts.push({
+      replay: local,
+      label: STR.localBestGhost,
+      color: "#7beeff",
+      alpha: 0.48
+    });
+  }
+  if (isReplay(onlineBestGhost) && onlineBestGhost.levelIndex === currentLevelIndex) {
+    const duplicateLocal = local &&
+      Math.abs((onlineBestGhost.time || 0) - (local.time || 0)) < 0.001 &&
+      (onlineBestGhost.stars || 0) === (local.stars || 0);
+    if (!duplicateLocal) {
+      ghosts.push({
+        replay: onlineBestGhost,
+        label: onlineBestGhost.label || STR.onlineBestGhost,
+        color: "#ffe86e",
+        alpha: 0.44
+      });
+    }
+  }
+  return ghosts;
+}
+
+function drawGhosts() {
+  const ghosts = activeGhosts();
+  if (ghosts.length === 0) return;
+  const size = 78;
+  for (let i = 0; i < ghosts.length; i += 1) {
+    const ghost = ghosts[i];
+    const sample = replaySampleAt(ghost.replay, stageTime);
+    if (!sample) continue;
+    const pastFinish = stageTime > ghost.replay.time;
+    const alpha = pastFinish ? ghost.alpha * 0.48 : ghost.alpha;
+    const stretch = clamp(-sample.vy / 1700, -0.12, 0.12);
+    const squashX = 1 - stretch * 0.25;
+    const squashY = 1 + stretch;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.translate(sample.x, sample.y);
+    ctx.rotate(sample.vx * 0.00038);
+    ctx.scale(squashX, squashY);
+    ctx.drawImage(images.hero, -size / 2, -size / 2, size, size);
+    ctx.globalCompositeOperation = "source-atop";
+    ctx.fillStyle = ghost.color;
+    ctx.fillRect(-size / 2, -size / 2, size, size);
+    ctx.restore();
+
+    ctx.save();
+    ctx.globalAlpha = alpha + 0.22;
+    ctx.strokeStyle = ghost.color;
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.arc(sample.x, sample.y, 44, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+
+    ctx.save();
+    ctx.globalAlpha = alpha + 0.24;
+    ctx.fillStyle = ghost.color;
+    ctx.strokeStyle = "rgba(7,28,75,.9)";
+    ctx.lineWidth = 4;
+    ctx.font = "900 24px system-ui";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    const labelY = sample.y - 62 - i * 24;
+    ctx.strokeText(ghost.label, sample.x, labelY);
+    ctx.fillText(ghost.label, sample.x, labelY);
+    ctx.restore();
+    drawCalls += 1;
+  }
+  ctx.globalAlpha = 1;
+  ctx.globalCompositeOperation = "source-over";
+}
+
 function drawWorld() {
   const jitterX = shake > 0 ? (nextRandom() - 0.5) * shake : 0;
   const jitterY = shake > 0 ? (nextRandom() - 0.5) * shake * 0.6 : 0;
@@ -936,6 +1212,8 @@ function drawWorld() {
     ctx.fill();
   }
   ctx.globalAlpha = 1;
+
+  drawGhosts();
 
   if (phase !== "dead") {
     const stretch = clamp(-ball.vy / 1700, -0.16, 0.15);
@@ -1212,6 +1490,14 @@ if (devEnabled) {
     cameraX,
     cameraTargetX,
     ball: { ...ball },
+    ghosts: activeGhosts().map((ghost) => ({
+      label: ghost.label,
+      time: ghost.replay.time,
+      stars: ghost.replay.stars,
+      samples: ghost.replay.samples.length
+    })),
+    localBestReplayCount: localBestReplays.filter(Boolean).length,
+    onlineGhostEnabled: Boolean(onlineConfig()),
     platformCount: runtimePlatforms.length,
     platformStates: runtimePlatforms.map((runtime) => ({
       kind: runtime.definition.kind,
@@ -1256,6 +1542,33 @@ if (devEnabled) {
     collectAllStars() {
       for (const runtimeStar of runtimeStars) runtimeStar.collected = true;
       stageCollected = runtimeStars.length;
+    },
+    seedBestReplay(index = currentLevelIndex) {
+      const levelIndex = clamp(Math.trunc(index), 0, LEVELS.length - 1);
+      const seedLevel = LEVELS[levelIndex];
+      const replay = {
+        version: 1,
+        levelIndex,
+        levelName: STR.stageNames[levelIndex],
+        time: 18,
+        stars: 3,
+        samples: [
+          { t: 0, x: seedLevel.start.x, y: seedLevel.start.y, vx: 0, vy: -CONFIG.bounceSpeed },
+          { t: 6, x: seedLevel.width * 0.28, y: 560, vx: 160, vy: -280 },
+          { t: 12, x: seedLevel.width * 0.62, y: 440, vx: 210, vy: -210 },
+          { t: 18, x: seedLevel.goal.x, y: seedLevel.goal.y, vx: 160, vy: 0 }
+        ]
+      };
+      localBestReplays[levelIndex] = replay;
+      saveReplaySlots("bounce-up-best-replays", localBestReplays);
+      return replay;
+    },
+    clearGhostReplays() {
+      localBestReplays = emptyReplaySlots();
+      localLastReplays = emptyReplaySlots();
+      saveReplaySlots("bounce-up-best-replays", localBestReplays);
+      saveReplaySlots("bounce-up-last-replays", localLastReplays);
+      onlineBestGhost = null;
     },
     step(frames = 1) {
       const count = clamp(Math.trunc(frames), 1, 600);

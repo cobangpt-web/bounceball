@@ -104,6 +104,20 @@
     <button id="touch-right" class="round-button" type="button">▶</button>
     <div id="dev"></div>
   </main>
-  <script type="module" src="./game.js"></script>
+  <script>
+    const loadGame = () => {
+      const script = document.createElement("script");
+      script.type = "module";
+      script.src = "./game.js";
+      document.body.append(script);
+    };
+    fetch("./config.js", { cache: "no-store" })
+      .then((response) => response.ok ? response.text() : "")
+      .then((code) => {
+        if (code) (0, eval)(code);
+        loadGame();
+      })
+      .catch(loadGame);
+  </script>
 </body>
 </html>
