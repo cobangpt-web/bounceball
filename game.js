@@ -984,6 +984,45 @@ function roundedRectPath(x, y, w, h, radius) {
   ctx.closePath();
 }
 
+function drawCrackPath(points, width, color) {
+  ctx.strokeStyle = color;
+  ctx.lineWidth = width;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.beginPath();
+  ctx.moveTo(points[0][0], points[0][1]);
+  for (let i = 1; i < points.length; i += 1) {
+    ctx.lineTo(points[i][0], points[i][1]);
+  }
+  ctx.stroke();
+}
+
+function drawCrumbleCracks(x, y, w, h) {
+  const cracks = [
+    [
+      [x + w * 0.12, y + h * 0.22],
+      [x + w * 0.27, y + h * 0.48],
+      [x + w * 0.41, y + h * 0.28],
+      [x + w * 0.55, y + h * 0.72],
+      [x + w * 0.71, y + h * 0.43],
+      [x + w * 0.86, y + h * 0.68]
+    ],
+    [
+      [x + w * 0.28, y + h * 0.18],
+      [x + w * 0.34, y + h * 0.44],
+      [x + w * 0.25, y + h * 0.78]
+    ],
+    [
+      [x + w * 0.63, y + h * 0.16],
+      [x + w * 0.58, y + h * 0.42],
+      [x + w * 0.68, y + h * 0.86]
+    ]
+  ];
+  for (const points of cracks) drawCrackPath(points, 9, "rgba(37,13,58,.72)");
+  for (const points of cracks) drawCrackPath(points, 5, "#24113b");
+  for (const points of cracks) drawCrackPath(points.map(([px, py]) => [px - 2, py - 2]), 2.5, "rgba(255,246,174,.86)");
+}
+
 function drawPlatform(runtime) {
   const definition = runtime.definition;
   if (!runtime.active) return;
@@ -1005,16 +1044,7 @@ function drawPlatform(runtime) {
     ctx.fillRect(runtime.cx, runtime.cy, definition.w, 7);
     ctx.fillStyle = "rgba(54,20,88,.42)";
     ctx.fillRect(runtime.cx, runtime.cy + definition.h * 0.58, definition.w, definition.h * 0.42);
-    ctx.strokeStyle = "rgba(86,33,105,.92)";
-    ctx.lineWidth = 4;
-    for (let x = runtime.cx + 32; x < runtime.cx + definition.w - 18; x += 52) {
-      ctx.beginPath();
-      ctx.moveTo(x, runtime.cy + 9);
-      ctx.lineTo(x + 11, runtime.cy + 19);
-      ctx.lineTo(x - 3, runtime.cy + 31);
-      ctx.lineTo(x + 9, runtime.cy + definition.h - 5);
-      ctx.stroke();
-    }
+    drawCrumbleCracks(runtime.cx, runtime.cy, definition.w, definition.h);
   } else {
     ctx.fillStyle = platformPattern || "#2768d8";
     ctx.fillRect(runtime.cx, runtime.cy, definition.w, definition.h);
